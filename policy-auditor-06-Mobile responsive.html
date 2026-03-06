@@ -1,0 +1,1845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Policy Strategy Auditor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:wght@300;400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f1e; --surface: #111827; --surface2: #1a2235; --surface3: #1e293b;
+    --border: #2a3a52; --emerald: #10b981; --emerald-dim: #064e3b;
+    --emerald-glow: rgba(16,185,129,0.15); --amber: #f59e0b; --rose: #f43f5e;
+    --slate: #94a3b8; --slate-light: #cbd5e1; --white: #f8fafc; --text: #e2e8f0;
+    --font-display: 'Fraunces', serif; --font-body: 'DM Sans', sans-serif; --font-mono: 'DM Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; font-size: 14px; line-height: 1.6; -webkit-text-size-adjust: 100%; }
+  body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse 60% 40% at 80% 10%, rgba(16,185,129,0.06) 0%, transparent 60%), radial-gradient(ellipse 40% 30% at 10% 80%, rgba(99,102,241,0.05) 0%, transparent 60%); pointer-events: none; z-index: 0; }
+  .container { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 12px 80px; }
+
+  /* Header */
+  .app-header { padding: 20px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+  .app-header .badge { font-family: var(--font-mono); font-size: 10px; color: var(--emerald); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+  .app-header h1 { font-family: var(--font-display); font-size: clamp(20px, 5vw, 32px); font-weight: 600; color: var(--white); line-height: 1.2; }
+  .app-header p { color: var(--slate); font-size: 13px; margin-top: 4px; }
+
+  /* Upload */
+  .upload-zone { border: 2px dashed var(--border); border-radius: 16px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.25s; background: var(--surface); margin-bottom: 14px; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--emerald); background: var(--emerald-glow); }
+  .upload-zone input { display: none; }
+  .upload-icon { font-size: 32px; margin-bottom: 10px; display: block; }
+  .upload-zone h3 { font-family: var(--font-display); font-size: 15px; color: var(--white); margin-bottom: 4px; }
+  .upload-zone p { color: var(--slate); font-size: 12px; }
+  .upload-btn { display: inline-block; margin-top: 12px; padding: 10px 24px; background: var(--emerald); color: #000; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; transition: opacity 0.2s; min-height: 44px; line-height: 24px; }
+  .upload-btn:hover { opacity: 0.85; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .card-title { font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--white); flex: 1; min-width: 0; }
+  .card-badge { font-family: var(--font-mono); font-size: 9px; padding: 3px 8px; background: var(--emerald-dim); color: var(--emerald); border-radius: 20px; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+
+  /* Info Grid */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media(max-width: 520px) { .info-grid { grid-template-columns: 1fr; } }
+  .info-field { display: flex; flex-direction: column; gap: 4px; }
+  .info-field label { font-family: var(--font-mono); font-size: 10px; color: var(--slate); letter-spacing: 1px; text-transform: uppercase; }
+  .info-field input, .info-field select { background: var(--surface3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--white); font-family: var(--font-mono); font-size: 14px; transition: border-color 0.2s; width: 100%; min-height: 44px; -webkit-appearance: none; }
+  .info-field input:focus, .info-field select:focus { outline: none; border-color: var(--emerald); background: var(--surface2); }
+  .info-field input::placeholder { color: var(--slate); opacity: 0.5; }
+
+  /* Illustration Mapper */
+  .mapper-banner { background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04)); border: 1px solid rgba(245,158,11,0.35); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: flex-start; }
+  .mapper-banner-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+  .mapper-banner-text { font-size: 12px; color: var(--slate-light); line-height: 1.5; }
+  .mapper-banner-text strong { color: var(--amber); display: block; margin-bottom: 2px; font-size: 13px; }
+  .raw-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 300px; overflow-y: auto; border-radius: 10px; border: 1px solid var(--border); }
+  .raw-table { border-collapse: collapse; font-size: 11px; font-family: var(--font-mono); min-width: max-content; }
+  .raw-table thead { position: sticky; top: 0; z-index: 2; }
+  .raw-table thead th { padding: 0; background: var(--surface2); border-bottom: 2px solid var(--border); white-space: nowrap; }
+  .raw-table thead th .col-header-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 6px; }
+  .raw-table thead th .col-name { color: var(--slate); font-size: 10px; letter-spacing: 0.5px; }
+  .raw-table thead th select.col-role { background: var(--surface3); border: 1px solid var(--border); border-radius: 6px; color: var(--white); font-size: 11px; padding: 4px 6px; width: 100%; min-width: 100px; font-family: var(--font-mono); cursor: pointer; min-height: 34px; }
+  .raw-table thead th select.col-role:focus { outline: none; border-color: var(--emerald); }
+  .raw-table thead th.col-selected select.col-role { border-color: var(--emerald); color: var(--emerald); }
+  .raw-table thead th.col-year select.col-role { border-color: var(--amber); color: var(--amber); }
+  .raw-table tbody td { padding: 6px 10px; text-align: right; border-bottom: 1px solid rgba(42,58,82,0.4); color: var(--slate-light); white-space: nowrap; }
+  .raw-table tbody td:first-child { text-align: center; }
+  .raw-table tbody tr:hover td { background: var(--surface3); }
+  .raw-table tbody td.col-highlighted { background: rgba(16,185,129,0.07); color: var(--emerald); }
+  .raw-table tbody td.col-year-highlighted { background: rgba(245,158,11,0.07); color: var(--amber); }
+  .mapper-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn-apply-mapping { flex: 1; min-width: 160px; padding: 12px 16px; background: var(--emerald); border: none; border-radius: 8px; color: #000; font-family: var(--font-body); font-weight: 600; font-size: 14px; cursor: pointer; transition: opacity 0.2s; min-height: 44px; }
+  .btn-apply-mapping:hover { opacity: 0.85; }
+  .btn-skip-mapping { padding: 12px 16px; background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--slate); font-family: var(--font-body); font-size: 13px; cursor: pointer; transition: all 0.2s; min-height: 44px; white-space: nowrap; }
+  .btn-skip-mapping:hover { border-color: var(--slate); color: var(--white); }
+
+  /* Charges table */
+  .charges-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Generic tables */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+  thead th { padding: 8px 8px; text-align: right; font-size: 10px; color: var(--emerald); letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface2); }
+  thead th:first-child { text-align: center; }
+  tbody td { padding: 7px 8px; text-align: right; border-bottom: 1px solid rgba(42,58,82,0.5); color: var(--slate-light); white-space: nowrap; }
+  tbody td:first-child { text-align: center; color: var(--slate); }
+  tbody tr:hover { background: var(--surface3); }
+  .td-total { color: var(--amber) !important; font-weight: 500; }
+
+  /* RoR selector */
+  .ror-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ror-option { position: relative; }
+  .ror-option input[type="radio"] { display: none; }
+  .ror-option label { display: flex; align-items: center; justify-content: center; padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: var(--font-mono); font-size: 13px; color: var(--slate); transition: all 0.2s; min-height: 44px; min-width: 58px; }
+  .ror-option input[type="radio"]:checked + label { border-color: var(--emerald); background: var(--emerald-glow); color: var(--emerald); }
+
+  /* Term inputs */
+  .term-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media(max-width: 520px) { .term-inputs { grid-template-columns: 1fr; } }
+
+  /* Consultant */
+  .consultant-grid { display: grid; grid-template-columns: 130px 1fr; gap: 14px; align-items: start; }
+  @media(max-width: 520px) { .consultant-grid { grid-template-columns: 1fr; } }
+  .logo-upload-area { border: 2px dashed var(--border); border-radius: 10px; padding: 14px 10px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface3); position: relative; }
+  .logo-upload-area:hover { border-color: var(--emerald); }
+  .logo-upload-area input { display: none; }
+  .logo-preview { max-height: 56px; max-width: 100%; object-fit: contain; display: block; margin: 0 auto 6px; }
+  .logo-placeholder { color: var(--slate); font-size: 11px; }
+  .logo-placeholder span { font-size: 22px; display: block; margin-bottom: 4px; }
+  .remove-logo-btn { position: absolute; top: 5px; right: 6px; background: var(--rose); color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; line-height: 20px; text-align: center; display: none; }
+
+  /* Calculate button */
+  .calc-btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 12px; color: #000; font-family: var(--font-display); font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.25s; letter-spacing: 0.5px; margin-bottom: 18px; min-height: 52px; }
+  .calc-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(16,185,129,0.3); }
+  .calc-btn:active { transform: translateY(0); }
+
+  /* Export */
+  .export-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .export-btn { flex: 1; min-width: 130px; padding: 12px 12px; border: none; border-radius: 10px; font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; }
+  .export-btn-excel { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; }
+  .export-btn-pdf   { background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; }
+  .export-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+  .export-btn:active { transform: translateY(0); }
+  .export-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* Summary */
+  .summary-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+  @media(max-width: 480px) { .summary-grid { grid-template-columns: 1fr; } }
+  .summary-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 10px; text-align: center; }
+  .summary-label { font-family: var(--font-mono); font-size: 9px; color: var(--slate); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .summary-value { font-family: var(--font-display); font-size: clamp(13px, 3.5vw, 18px); font-weight: 600; color: var(--white); word-break: break-all; }
+  .summary-value.positive { color: var(--emerald); }
+  .summary-value.negative { color: var(--rose); }
+  .summary-value.neutral  { color: var(--amber); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 3px; margin-bottom: 12px; background: var(--surface2); padding: 4px; border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab-btn { flex: 1; padding: 9px 6px; border: none; border-radius: 8px; background: transparent; color: var(--slate); font-family: var(--font-body); font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s; text-align: center; white-space: nowrap; min-height: 38px; }
+  .tab-btn.active { background: var(--surface3); color: var(--white); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Scrollable tables */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll table { min-width: 480px; }
+
+  /* Misc */
+  .winner-ulip { color: var(--amber); font-weight: 600; }
+  .winner-btri { color: var(--emerald); font-weight: 600; }
+  .diff-positive { color: var(--emerald); }
+  .diff-negative { color: var(--rose); }
+  .hidden { display: none !important; }
+  .section-heading { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--slate); margin-bottom: 10px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+  /* Status bar */
+  .status-bar { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-family: var(--font-mono); font-size: 11px; color: var(--emerald); margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px; }
+  .status-dot { width: 6px; height: 6px; background: var(--emerald); border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .status-bar.error { color: var(--rose); border-color: rgba(244,63,94,0.3); }
+  .status-bar.error .status-dot { background: var(--rose); }
+
+  /* Loading */
+  .loading { text-align: center; padding: 30px; color: var(--slate); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--emerald); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Password modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 24px 20px; width: 100%; max-width: 360px; box-shadow: 0 24px 60px rgba(0,0,0,0.6); }
+  .modal-icon { font-size: 34px; text-align: center; margin-bottom: 10px; }
+  .modal-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--white); text-align: center; margin-bottom: 5px; }
+  .modal-subtitle { font-size: 12px; color: var(--slate); text-align: center; margin-bottom: 18px; }
+  .modal-input-wrap { position: relative; margin-bottom: 12px; }
+  .modal-input { width: 100%; background: var(--surface3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 44px 12px 14px; color: var(--white); font-family: var(--font-mono); font-size: 15px; letter-spacing: 2px; min-height: 48px; }
+  .modal-input:focus { outline: none; border-color: var(--emerald); }
+  .modal-toggle-pw { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--slate); cursor: pointer; font-size: 18px; padding: 4px; min-width: 32px; min-height: 32px; }
+  .modal-error { font-size: 11px; color: var(--rose); text-align: center; margin-bottom: 10px; min-height: 16px; }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-btn-primary { flex: 1; padding: 12px; min-height: 48px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 10px; color: #000; font-family: var(--font-body); font-weight: 600; font-size: 15px; cursor: pointer; transition: opacity 0.2s; }
+  .modal-btn-primary:hover { opacity: 0.85; }
+  .modal-btn-secondary { padding: 12px 16px; min-height: 48px; background: transparent; border: 1px solid var(--border); border-radius: 10px; color: var(--slate); font-family: var(--font-body); font-size: 13px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .modal-btn-secondary:hover { border-color: var(--slate); color: var(--white); }
+
+  /* Mobile overrides ≤480px */
+  @media(max-width: 480px) {
+    .container { padding: 0 10px 60px; }
+    .card { padding: 12px 10px; border-radius: 12px; }
+    .export-btn { font-size: 12px; min-width: 0; }
+    .tab-btn { font-size: 10px; padding: 8px 3px; }
+    thead th { font-size: 9px; padding: 6px 5px; }
+    tbody td { font-size: 11px; padding: 6px 5px; }
+    .mapper-actions { flex-direction: column; }
+    .btn-apply-mapping, .btn-skip-mapping { width: 100%; text-align: center; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media(max-width: 360px) {
+    .summary-grid { grid-template-columns: 1fr; }
+    .ror-option label { padding: 10px 10px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header class="app-header">
+    <span class="badge">Insurance Analytics</span>
+    <h1>Policy Strategy Auditor</h1>
+    <p>ULIP vs Buy Term &amp; Invest the Rest — data-driven comparison</p>
+  </header>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="pdfInput" accept=".pdf">
+    <span class="upload-icon">📄</span>
+    <h3>Upload Policy Document</h3>
+    <p>Policy Schedule, First Premium Receipt or Illustration PDF</p>
+    <span class="upload-btn" onclick="document.getElementById('pdfInput').click()">Choose PDF</span>
+  </div>
+
+  <!-- Status -->
+  <div id="statusBar" class="status-bar hidden">
+    <div class="status-dot"></div>
+    <span id="statusText"></span>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingDiv" class="loading hidden">
+    <div class="spinner"></div>
+    <p>Extracting data from PDF…</p>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashboard" class="hidden">
+
+    <!-- Policy Info Card -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Policy Details</div>
+        </div>
+        <span class="card-badge">Verify &amp; Edit</span>
+      </div>
+      <div class="info-grid">
+        <div class="info-field"><label>Policyholder Name</label><input type="text" id="f_name" placeholder="—"></div>
+        <div class="info-field"><label>Age</label><input type="number" id="f_age" placeholder="—"></div>
+        <div class="info-field"><label>Insurance Company</label><input type="text" id="f_company" placeholder="—"></div>
+        <div class="info-field"><label>Plan Name</label><input type="text" id="f_plan" placeholder="—"></div>
+        <div class="info-field"><label>Policy Issue Date</label><input type="text" id="f_issuedate" placeholder="—"></div>
+        <div class="info-field"><label>Sum Assured (₹)</label><input type="number" id="f_sa" placeholder="0"></div>
+        <div class="info-field"><label>Policy Term (PT) years</label><input type="number" id="f_pt" placeholder="0"></div>
+        <div class="info-field"><label>Premium Paying Term (PPT) years</label><input type="number" id="f_ppt" placeholder="0"></div>
+        <div class="info-field"><label>ULIP Annual Premium (₹)</label><input type="number" id="f_ulip" placeholder="0"></div>
+      </div>
+    </div>
+
+    <!-- Charges Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Year-wise Charges</div>
+        <span class="card-badge" id="chargesBadge">From Illustration</span>
+      </div>
+
+      <!-- Raw Illustration Mapper (shown when auto-extraction fails) -->
+      <div id="illustrationMapper" class="hidden">
+        <div class="mapper-banner">
+          <span class="mapper-banner-icon">🔍</span>
+          <div class="mapper-banner-text">
+            <strong>Verify Column Mapping</strong>
+            The Benefit Illustration table is shown below. Dropdowns are pre-filled where columns were auto-detected — please check each one, correct any mis-labels, then click <em>Apply Mapping</em>.
+          </div>
+        </div>
+        <div class="raw-table-scroll">
+          <table class="raw-table" id="rawIllustrationTable">
+            <thead><tr id="rawHeaderRow"></tr></thead>
+            <tbody id="rawIllustrationBody"></tbody>
+          </table>
+        </div>
+        <div class="mapper-actions">
+          <button class="btn-apply-mapping" onclick="applyColumnMapping()">✓ Apply Mapping &amp; Build Charges Table</button>
+          <button class="btn-skip-mapping" onclick="skipMapping()">Skip — Enter Charges Manually</button>
+        </div>
+      </div>
+
+      <!-- Final Charges Table -->
+      <div id="chargesTableWrap" class="charges-table-wrap hidden">
+        <table id="chargesTable">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>PAC (₹)</th>
+              <th>Mortality (₹)</th>
+              <th>Admin (₹)</th>
+              <th>FMC (₹)</th>
+              <th>Other (₹)</th>
+              <th>Total (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="chargesTbody"></tbody>
+        </table>
+      </div>
+      <p style="font-size:11px;color:var(--slate);margin-top:10px;">* All charge cells are editable. Click any value to correct it manually.</p>
+    </div>
+
+    <!-- Inputs Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Calculation Inputs</div>
+      </div>
+      <p class="section-heading">Rate of Return</p>
+      <div class="ror-group" style="margin-bottom:18px;">
+        <div class="ror-option"><input type="radio" name="ror" id="ror10" value="10"><label for="ror10">10%</label></div>
+        <div class="ror-option"><input type="radio" name="ror" id="ror12" value="12" checked><label for="ror12">12%</label></div>
+        <div class="ror-option"><input type="radio" name="ror" id="ror15" value="15"><label for="ror15">15%</label></div>
+        <div class="ror-option"><input type="radio" name="ror" id="rorCustom" value="custom"><label for="rorCustom">Custom</label></div>
+      </div>
+      <div class="term-inputs">
+        <div class="info-field">
+          <label>Custom RoR (%)</label>
+          <input type="number" id="f_customRor" placeholder="e.g. 13" step="0.1">
+        </div>
+        <div class="info-field">
+          <label>Term Plan Annual Premium (₹)</label>
+          <input type="number" id="f_termPremium" placeholder="e.g. 12000">
+        </div>
+      </div>
+    </div>
+
+    <!-- Consultant Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Consultant Details</div>
+        <span class="card-badge">Appears on Reports</span>
+      </div>
+      <div class="consultant-grid">
+        <!-- Logo Upload -->
+        <div>
+          <p class="section-heading" style="margin-bottom:8px;">Logo</p>
+          <div class="logo-upload-area" onclick="document.getElementById('logoInput').click()">
+            <input type="file" id="logoInput" accept="image/*" onchange="handleLogoUpload(event)">
+            <img id="logoPreview" class="logo-preview" style="display:none;">
+            <div class="logo-placeholder" id="logoPlaceholder">
+              <span>🏢</span>Upload Logo
+            </div>
+            <button class="remove-logo-btn" id="removeLogoBtn" onclick="removeLogo(event)">✕</button>
+          </div>
+        </div>
+        <!-- Details -->
+        <div class="info-grid" style="grid-template-columns:1fr 1fr;">
+          <div class="info-field"><label>Consultant Name</label><input type="text" id="c_name" placeholder="Your Name"></div>
+          <div class="info-field"><label>Designation</label><input type="text" id="c_designation" placeholder="Financial Advisor"></div>
+          <div class="info-field"><label>Company / Firm</label><input type="text" id="c_company" placeholder="Firm Name"></div>
+          <div class="info-field"><label>IRDA / ARN No.</label><input type="text" id="c_irdano" placeholder="ARN-XXXXX"></div>
+          <div class="info-field"><label>Phone</label><input type="text" id="c_phone" placeholder="+91 XXXXX XXXXX"></div>
+          <div class="info-field"><label>Email</label><input type="text" id="c_email" placeholder="you@example.com"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calculate -->
+    <button class="calc-btn" onclick="runCalculation()">⚡ Calculate &amp; Compare</button>
+
+    <!-- Results -->
+    <div id="results" class="hidden">
+
+      <!-- Summary -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Strategy Summary</div>
+          <span class="card-badge">Final Year</span>
+        </div>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-label">ULIP Final Value</div>
+            <div class="summary-value neutral" id="sum_ulip">—</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">BTRI Final Value</div>
+            <div class="summary-value positive" id="sum_btri">—</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Wealth Gap</div>
+            <div class="summary-value" id="sum_gap">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Bar -->
+      <div class="export-bar">
+        <button class="export-btn export-btn-excel" onclick="exportExcel()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 18l-2-3 2-3h1.7l-2 3 2 3H8.5zm4.3 0h-1.6l-2-3 2-3h1.6l-2 3 2 3zm2.2 0l2-3-2-3h1.7l2 3-2 3H15z"/></svg>
+          Download Excel
+        </button>
+        <button class="export-btn export-btn-pdf" onclick="exportPDF()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM11 18H9.5v-2H11v2zm0-3H9.5v-4H11v4zm3 3h-1.5v-2H14v2zm0-3h-1.5v-4H14v4z"/></svg>
+          Download PDF
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('ulip',this)">ULIP Performance</button>
+        <button class="tab-btn" onclick="switchTab('btri',this)">BTRI Performance</button>
+        <button class="tab-btn" onclick="switchTab('compare',this)">Comparison</button>
+      </div>
+
+      <!-- ULIP Tab -->
+      <div class="tab-content active" id="tab-ulip">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>S.No</th>
+                <th>Opening Bal (₹)</th>
+                <th>ULIP Premium (₹)</th>
+                <th>Total Charges (₹)</th>
+                <th>Net Deposit (₹)</th>
+                <th>Income (₹)</th>
+                <th>Closing Bal (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="ulipTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BTRI Tab -->
+      <div class="tab-content" id="tab-btri">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>S.No</th>
+                <th>Opening Bal (₹)</th>
+                <th>ULIP Premium (₹)</th>
+                <th>Term Premium (₹)</th>
+                <th>Net Deposit (₹)</th>
+                <th>Income (₹)</th>
+                <th>Closing Bal (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="btriTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Comparison Tab -->
+      <div class="tab-content" id="tab-compare">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>S.No</th>
+                <th>Year</th>
+                <th>ULIP Fund Value (₹)</th>
+                <th>BTRI Fund Value (₹)</th>
+                <th>Difference (₹)</th>
+                <th>Winner</th>
+              </tr>
+            </thead>
+            <tbody id="compareTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /results -->
+  </div><!-- /dashboard -->
+
+</div><!-- /container -->
+
+<!-- Password Modal -->
+<div class="modal-overlay hidden" id="pwModal">
+  <div class="modal-box">
+    <div class="modal-icon">🔒</div>
+    <div class="modal-title">Password Protected PDF</div>
+    <div class="modal-subtitle" id="pwModalSubtitle">This PDF is encrypted. Enter the password to unlock it.</div>
+    <div class="modal-input-wrap">
+      <input class="modal-input" type="password" id="pwInput" placeholder="Enter password…"
+        onkeydown="if(event.key==='Enter') submitPassword()">
+      <button class="modal-toggle-pw" onclick="togglePwVisibility()" title="Show/hide">👁</button>
+    </div>
+    <div class="modal-error" id="pwError"></div>
+    <div class="modal-actions">
+      <button class="modal-btn-primary" onclick="submitPassword()">Unlock PDF</button>
+      <button class="modal-btn-secondary" onclick="cancelPassword()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- PDF.js setup ----
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ---- Upload handlers ----
+const uploadZone = document.getElementById('uploadZone');
+const pdfInput = document.getElementById('pdfInput');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') processPDF(file);
+});
+pdfInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) processPDF(file);
+});
+
+function showStatus(msg, isError = false) {
+  const bar = document.getElementById('statusBar');
+  bar.classList.remove('hidden', 'error');
+  if (isError) bar.classList.add('error');
+  document.getElementById('statusText').textContent = msg;
+}
+
+function fmt(n) {
+  if (isNaN(n) || n === null) return '—';
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+// ---- Extracted data store ----
+let pdfText = '';
+let chargesData = []; // array of {year, pac, mortality, admin, fmc, other, total}
+
+// ---- Positional text reconstruction ----
+// Returns array of pages, each page is array of lines, each line is array of {x, text}
+async function extractPositionalPages(pdf) {
+  const pages = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const viewport = page.getViewport({ scale: 1 });
+
+    // Group items into rows by Y coordinate (within 4pt tolerance)
+    const rowMap = {};
+    for (const item of content.items) {
+      if (!item.str || !item.str.trim()) continue;
+      const tx = item.transform;
+      // tx = [scaleX, skewX, skewY, scaleY, translateX, translateY]
+      const x = Math.round(tx[4]);
+      const y = Math.round(viewport.height - tx[5]); // flip Y so top=0
+      // bucket y into rows (4pt tolerance)
+      const bucket = Math.round(y / 4) * 4;
+      if (!rowMap[bucket]) rowMap[bucket] = [];
+      rowMap[bucket].push({ x, text: item.str.trim() });
+    }
+
+    // Sort rows top→bottom, cells left→right
+    const sortedRows = Object.keys(rowMap)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(y => ({
+        y,
+        cells: rowMap[y].sort((a, b) => a.x - b.x)
+      }));
+
+    pages.push(sortedRows);
+  }
+  return pages;
+}
+
+// Reconstruct plain text (join cells with spaces, rows with newlines)
+function pagesToPlainText(pages) {
+  return pages.map(rows =>
+    rows.map(row => row.cells.map(c => c.text).join('  ')).join('\n')
+  ).join('\n');
+}
+
+// Find all candidate tables and stitch multi-page continuations together
+// Returns array of { pageIdx, headerRows, dataRows }
+function findNumericTables(pages) {
+  // ── Step 1: Extract all per-page table fragments ──
+  const fragments = []; // { pageIdx, headerRows, dataRows, firstYear, lastYear, colCount }
+
+  pages.forEach((rows, pageIdx) => {
+    let tableStart = -1;
+    let numericCount = 0;
+
+    const flushTable = (endR) => {
+      if (tableStart === -1 || numericCount < 2) return;
+      const hdrStart = Math.max(0, tableStart - 4);
+      const dataRows = rows.slice(tableStart, endR);
+      const headerRows = rows.slice(hdrStart, tableStart);
+
+      // Find which column (0 or 1) is the year column — sequential integers starting 1..N
+      const yearColIdx = detectYearColumn(dataRows);
+      if (yearColIdx === -1) return; // not a year-based table, skip
+
+      const firstYear = getYearFromRow(dataRows[0], yearColIdx);
+      const lastYear  = getYearFromRow(dataRows[dataRows.length - 1], yearColIdx);
+      if (firstYear < 1 || firstYear > 50) return;
+
+      fragments.push({ pageIdx, headerRows, dataRows, firstYear, lastYear, yearColIdx, colCount: dataRows[0]?.cells?.length || 0 });
+    };
+
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      const numericCells = row.cells.filter(c => /^[\d,]+(\.\d+)?$/.test(c.text.replace(/,/g, '')));
+      const isNumericRow = numericCells.length >= 2 && row.cells.length >= 3;
+
+      if (isNumericRow) {
+        if (tableStart === -1) tableStart = r;
+        numericCount++;
+      } else {
+        if (numericCount >= 2) flushTable(r);
+        tableStart = -1;
+        numericCount = 0;
+      }
+    }
+    if (numericCount >= 2) flushTable(rows.length);
+  });
+
+  if (fragments.length === 0) return [];
+
+  // ── Step 2: Stitch fragments that are continuations of the same table ──
+  // A fragment B continues fragment A if:
+  //   - B.firstYear === A.lastYear + 1  (years continue sequentially)
+  //   - B.colCount ≈ A.colCount         (same number of columns ±1)
+  //   - B comes after A in page order
+  const stitched = [];
+  const used = new Set();
+
+  for (let i = 0; i < fragments.length; i++) {
+    if (used.has(i)) continue;
+    const base = {
+      pageIdx:    fragments[i].pageIdx,
+      headerRows: fragments[i].headerRows,
+      dataRows:   [...fragments[i].dataRows],
+      firstYear:  fragments[i].firstYear,
+      lastYear:   fragments[i].lastYear,
+      yearColIdx: fragments[i].yearColIdx,
+      colCount:   fragments[i].colCount,
+    };
+    used.add(i);
+
+    // Look forward for continuations
+    let didStitch = true;
+    while (didStitch) {
+      didStitch = false;
+      for (let j = 0; j < fragments.length; j++) {
+        if (used.has(j)) continue;
+        const next = fragments[j];
+        const yearContinues = next.firstYear === base.lastYear + 1;
+        const colsMatch = Math.abs(next.colCount - base.colCount) <= 2;
+        const pageForward = next.pageIdx >= base.pageIdx;
+
+        if (yearContinues && colsMatch && pageForward) {
+          // If next fragment has a header, only use it if base has no header yet
+          // (repeated headers on continuation pages should be dropped)
+          base.dataRows.push(...next.dataRows);
+          base.lastYear = next.lastYear;
+          used.add(j);
+          didStitch = true;
+          break; // restart search from top after each stitch
+        }
+      }
+    }
+
+    stitched.push(base);
+  }
+
+  return stitched;
+}
+
+// Detect which column (checking cols 0 and 1) contains sequential year integers
+function detectYearColumn(dataRows) {
+  if (!dataRows.length) return -1;
+  for (const colIdx of [0, 1]) {
+    const vals = dataRows.slice(0, Math.min(5, dataRows.length))
+      .map(r => parseFloat((r.cells[colIdx]?.text || '').replace(/,/g, '')));
+    const allInts = vals.every(v => !isNaN(v) && Number.isInteger(v) && v >= 1 && v <= 60);
+    const isSequential = vals.length >= 2 && vals[1] === vals[0] + 1;
+    if (allInts && isSequential) return colIdx;
+  }
+  return -1;
+}
+
+function getYearFromRow(row, colIdx) {
+  return parseInt((row?.cells[colIdx]?.text || '').replace(/,/g, '')) || -1;
+}
+
+// Score a table by how "charge-like" it looks
+function scoreTableForCharges(table) {
+  let score = 0;
+  const allText = [
+    ...table.headerRows.flatMap(r => r.cells.map(c => c.text)),
+    ...table.dataRows.flatMap(r => r.cells.map(c => c.text))
+  ].join(' ').toLowerCase();
+
+  const keywords = ['charge','pac','mortality','fmc','fund management','admin','allocation','deduction','total'];
+  keywords.forEach(k => { if (allText.includes(k)) score += 10; });
+
+  // Bonus: year column detected (already guaranteed by findNumericTables, but reward early col)
+  if (table.yearColIdx === 0) score += 20;
+  else if (table.yearColIdx === 1) score += 15;
+
+  // Bonus: starts at year 1
+  if (table.firstYear === 1) score += 10;
+
+  // Bonus: spans many years (multi-page stitched tables)
+  score += Math.min(20, table.dataRows.length);
+
+  // Bonus: "illustration" or "benefit" nearby
+  if (allText.includes('illustration') || allText.includes('benefit')) score += 15;
+
+  // Penalty: looks like a fund value / NAV table (large numbers appear in col 1 from year 1)
+  const earlyNums = table.dataRows.slice(0, 3).flatMap(r =>
+    r.cells.slice(1).map(c => parseFloat(c.text.replace(/,/g, ''))).filter(n => !isNaN(n))
+  );
+  if (earlyNums.some(n => n > 500000)) score -= 8;
+
+  return score;
+}
+
+// Convert a positional table's rows into string[][] using column buckets
+function tableToStringGrid(table) {
+  const allRows = [...table.headerRows, ...table.dataRows];
+
+  // Collect every individual cell with its x position (not de-duped)
+  const allCells = allRows.flatMap(r => r.cells);
+
+  // Determine adaptive gap threshold: use the median gap between sorted x values
+  const colBoundaries = clusterXPositions(allCells.map(c => c.x));
+
+  const toColIdx = (x) => {
+    // Find the column boundary this x belongs to (closest left boundary)
+    let best = 0;
+    for (let i = 0; i < colBoundaries.length; i++) {
+      if (x >= colBoundaries[i] - 8) best = i;
+    }
+    return best;
+  };
+
+  const buildRow = (row) => {
+    const arr = Array(colBoundaries.length).fill('');
+    row.cells.forEach(c => {
+      const idx = toColIdx(c.x);
+      // If a cell already exists at this slot, the text is a continuation (multi-word header)
+      arr[idx] = arr[idx] ? arr[idx] + ' ' + c.text : c.text;
+    });
+    // Post-process: split any cell that looks like "NUM NUM NUM" (merged numbers) into separate cols
+    return arr;
+  };
+
+  const headers = table.headerRows.map(buildRow);
+  const data = table.dataRows.map(buildRow);
+
+  // Merge multi-row headers
+  const mergedHeader = Array(colBoundaries.length).fill('');
+  headers.forEach(hrow => {
+    hrow.forEach((cell, i) => {
+      if (cell.trim()) mergedHeader[i] = mergedHeader[i] ? mergedHeader[i] + ' ' + cell : cell;
+    });
+  });
+
+  // ── Detect and fix merged-number columns ──
+  // A "merged" cell looks like "1,23,456 78,910 11,234" — multiple numbers in one cell.
+  // Strategy: for each column, check if data cells frequently contain 2+ space-separated numbers.
+  // If so, split that column into sub-columns.
+  const { fixedHeaders, fixedRows } = splitMergedColumns(mergedHeader, data);
+
+  return { headers: fixedHeaders, rows: fixedRows };
+}
+
+// Detect columns where cells contain multiple whitespace-separated numbers and split them
+function splitMergedColumns(headers, rows) {
+  const numCols = headers.length;
+  // For each column, count how many data rows have 2+ numeric tokens
+  const mergedCounts = Array(numCols).fill(0);
+  const maxSplits = Array(numCols).fill(1); // how many sub-cols to split into
+
+  rows.forEach(row => {
+    row.forEach((cell, ci) => {
+      const tokens = (cell || '').trim().split(/\s+/).filter(t => /^[\d,]+(\.\d+)?$/.test(t));
+      if (tokens.length >= 2) {
+        mergedCounts[ci]++;
+        maxSplits[ci] = Math.max(maxSplits[ci], tokens.length);
+      }
+    });
+  });
+
+  // A column is "merged" if >40% of rows have multiple numbers in it
+  const threshold = Math.max(2, rows.length * 0.4);
+  const isMerged = mergedCounts.map((c, i) => c >= threshold && maxSplits[i] >= 2);
+
+  if (!isMerged.some(Boolean)) {
+    return { fixedHeaders: headers, fixedRows: rows };
+  }
+
+  // Build new column layout
+  const newHeaders = [];
+  const colMap = []; // maps old col idx → [new col idx, subIdx]
+
+  headers.forEach((h, ci) => {
+    const start = newHeaders.length;
+    if (isMerged[ci]) {
+      const n = maxSplits[ci];
+      for (let s = 0; s < n; s++) {
+        newHeaders.push(s === 0 ? h : `${h} (${s + 1})`);
+        colMap.push([ci, s]);
+      }
+    } else {
+      newHeaders.push(h);
+      colMap.push([ci, 0]);
+    }
+  });
+
+  const fixedRows = rows.map(row => {
+    const newRow = Array(newHeaders.length).fill('');
+    colMap.forEach(([oldCI, subI], newCI) => {
+      const cell = (row[oldCI] || '').trim();
+      if (isMerged[oldCI]) {
+        const tokens = cell.split(/\s+/).filter(t => t.length > 0);
+        newRow[newCI] = tokens[subI] || '';
+      } else {
+        newRow[newCI] = cell;
+      }
+    });
+    return newRow;
+  });
+
+  return { fixedHeaders: newHeaders, fixedRows: fixedRows };
+}
+
+// Adaptive column boundary detection
+function clusterXPositions(xs) {
+  if (!xs.length) return [0];
+  const sorted = [...xs].sort((a, b) => a - b);
+
+  // Compute gaps between consecutive x values
+  const gaps = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const g = sorted[i] - sorted[i - 1];
+    if (g > 0) gaps.push(g);
+  }
+
+  // Use median gap as the base unit; columns are separated by > 1.5× median gap
+  gaps.sort((a, b) => a - b);
+  const medianGap = gaps[Math.floor(gaps.length / 2)] || 10;
+  const splitThreshold = Math.max(8, medianGap * 1.5);
+
+  const cols = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] - sorted[i - 1] > splitThreshold) {
+      cols.push(sorted[i]);
+    }
+  }
+  return [...new Set(cols)];
+}
+
+// ---- Password modal state ----
+let _pendingArrayBuffer = null;
+let _pendingFileName = '';
+
+function showPasswordModal(subtitle) {
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwError').textContent = '';
+  document.getElementById('pwModalSubtitle').textContent = subtitle || 'This PDF is encrypted. Enter the password to unlock it.';
+  document.getElementById('pwModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('pwInput').focus(), 100);
+}
+
+function hidePasswordModal() {
+  document.getElementById('pwModal').classList.add('hidden');
+}
+
+function togglePwVisibility() {
+  const inp = document.getElementById('pwInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function cancelPassword() {
+  hidePasswordModal();
+  _pendingArrayBuffer = null;
+  _pendingFileName = '';
+  document.getElementById('loadingDiv').classList.add('hidden');
+  showStatus('PDF loading cancelled — file is password protected.', true);
+}
+
+async function submitPassword() {
+  const pw = document.getElementById('pwInput').value;
+  if (!pw) { document.getElementById('pwError').textContent = 'Please enter a password.'; return; }
+  document.getElementById('pwError').textContent = '';
+  hidePasswordModal();
+  document.getElementById('loadingDiv').classList.remove('hidden');
+  await loadPDFWithPassword(_pendingArrayBuffer, _pendingFileName, pw);
+}
+
+async function processPDF(file) {
+  document.getElementById('loadingDiv').classList.remove('hidden');
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('results').classList.add('hidden');
+  chargesData = [];
+  rawIllustrationTable = null;
+
+  const arrayBuffer = await file.arrayBuffer();
+  _pendingArrayBuffer = arrayBuffer;
+  _pendingFileName = file.name;
+  await loadPDFWithPassword(arrayBuffer, file.name, null);
+}
+
+async function loadPDFWithPassword(arrayBuffer, fileName, password) {
+  try {
+    const loadParams = { data: arrayBuffer.slice(0) };
+    if (password) loadParams.password = password;
+
+    const pdf = await pdfjsLib.getDocument(loadParams).promise;
+
+    // Extract with positional data
+    const pages = await extractPositionalPages(pdf);
+    pdfText = pagesToPlainText(pages);
+
+    populateFields(pdfText);
+
+    const allTables = findNumericTables(pages);
+
+    if (allTables.length === 0) {
+      skipMapping();
+      showStatus(`PDF loaded: "${fileName}" — No tables found. Please enter charges manually.`, true);
+    } else {
+      allTables.sort((a, b) => scoreTableForCharges(b) - scoreTableForCharges(a));
+      const bestTable = allTables[0];
+      const grid = tableToStringGrid(bestTable);
+      rawIllustrationTable = grid;
+
+      const autoMapped = tryAutoMap(grid.headers, grid.rows);
+      showIllustrationMapper(grid.headers, grid.rows);
+      const autoMsg = autoMapped && autoMapped.length >= 3
+        ? `Columns auto-detected and pre-filled — ${grid.rows.length} rows. Verify each label then click Apply.`
+        : `${allTables.length} table fragment(s) found (${grid.rows.length} total rows) — assign a role to each column and click Apply.`;
+      showStatus(`PDF loaded: "${fileName}" — ${autoMsg}`, false);
+    }
+
+    document.getElementById('loadingDiv').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    _pendingArrayBuffer = null;
+
+  } catch (err) {
+    document.getElementById('loadingDiv').classList.add('hidden');
+
+    // pdf.js throws a specific PasswordException
+    const msg = err.message || '';
+    const isPasswordError = err.name === 'PasswordException' ||
+      msg.toLowerCase().includes('password') ||
+      msg.includes('No password given') ||
+      msg.includes('Incorrect password') ||
+      err.code === 1 || err.code === 2; // pdf.js PasswordResponses: NEED_PASSWORD=1, INCORRECT_PASSWORD=2
+
+    if (isPasswordError) {
+      const isWrong = err.code === 2 || msg.toLowerCase().includes('incorrect');
+      showPasswordModal(isWrong
+        ? '⚠️ Incorrect password. Please try again.'
+        : 'This PDF is encrypted. Enter the password to unlock it.');
+      if (isWrong) {
+        document.getElementById('pwError').textContent = 'Incorrect password — please try again.';
+        document.getElementById('pwModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('pwInput').focus(), 100);
+      }
+      return;
+    }
+
+    console.error(err);
+    showStatus('Error reading PDF: ' + err.message, true);
+    document.getElementById('dashboard').classList.remove('hidden');
+  }
+}
+
+// ---- Field extraction helpers ----
+function extractPattern(text, patterns) {
+  for (const pat of patterns) {
+    const m = text.match(pat);
+    if (m && m[1]) return m[1].trim();
+  }
+  return '';
+}
+
+function extractNumber(text, patterns) {
+  for (const pat of patterns) {
+    const m = text.match(pat);
+    if (m) {
+      const raw = (m[1] || m[2] || '').replace(/,/g, '').trim();
+      const n = parseFloat(raw);
+      if (!isNaN(n)) return n;
+    }
+  }
+  return '';
+}
+
+function populateFields(text) {
+  // Name
+  const name = extractPattern(text, [
+    /(?:Policyholder|Life Assured|Insured|Policy Holder)[^\w]*Name[:\s]+([A-Za-z\s.]+?)(?:\n|  |Date|Age|DOB)/i,
+    /Name of (?:Life Assured|Policyholder)[:\s]+([A-Za-z\s.]+?)(?:\n|  )/i,
+    /(?:Mr\.|Mrs\.|Ms\.|Dr\.)\s+([A-Za-z\s]+?)(?:\n|  |Date)/i,
+  ]);
+  setField('f_name', name);
+
+  // Age
+  const age = extractNumber(text, [
+    /Age[:\s]+(\d{1,3})\s*(?:years|Yrs|yr)?/i,
+    /Age at Entry[:\s]+(\d{1,3})/i,
+  ]);
+  setField('f_age', age);
+
+  // Company
+  const company = extractPattern(text, [
+    /^([A-Z][A-Za-z\s]+(?:Life|Insurance|Assurance)[A-Za-z\s]*(?:Ltd|Limited|Co\.)?)/m,
+    /((?:HDFC|ICICI|SBI|LIC|Tata AIA|Max Life|Bajaj|Kotak|Aditya Birla|PNB|Canara HSBC)[^\n]+)/i,
+  ]);
+  setField('f_company', company);
+
+  // Plan
+  const plan = extractPattern(text, [
+    /(?:Plan Name|Policy Name|Product Name|Scheme)[:\s]+([^\n]+)/i,
+    /(?:ULIP|Unit Linked)[^\n]*Plan[:\s]*([^\n]+)/i,
+  ]);
+  setField('f_plan', plan);
+
+  // Issue Date
+  const issueDate = extractPattern(text, [
+    /(?:Policy Issue Date|Date of Commencement|Risk Commencement)[:\s]+([\d\/\-A-Za-z]+)/i,
+    /(?:Inception Date|Policy Date)[:\s]+([\d\/\-A-Za-z]+)/i,
+  ]);
+  setField('f_issuedate', issueDate);
+
+  // Sum Assured
+  const sa = extractNumber(text, [
+    /Sum Assured[:\s]*(?:Rs\.?|₹|INR)?\s*([\d,]+)/i,
+    /Basic Sum Assured[:\s]*(?:Rs\.?|₹)?\s*([\d,]+)/i,
+  ]);
+  setField('f_sa', sa);
+
+  // Policy Term
+  const pt = extractNumber(text, [
+    /Policy Term\s*[\(:]?\s*(?:PT)?\s*[:\)]*\s*(\d+)\s*(?:Year|Yr)?/i,
+    /Term of Policy[:\s]+(\d+)/i,
+    /Policy Term[:\s]+(\d+)/i,
+  ]);
+  setField('f_pt', pt);
+
+  // PPT
+  const ppt = extractNumber(text, [
+    /Premium (?:Payment|Paying) Term\s*[\(:]?\s*(?:PPT)?\s*[:\)]*\s*(\d+)\s*(?:Year|Yr)?/i,
+    /PPT[:\s]+(\d+)/i,
+    /Premium Term[:\s]+(\d+)/i,
+  ]);
+  setField('f_ppt', ppt);
+
+  // ULIP Premium
+  const ulip = extractNumber(text, [
+    /(?:Annualised|Annualized|Annual) Premium[:\s]*(?:Rs\.?|₹)?\s*([\d,]+)/i,
+    /(?:Modal|Regular) Premium[:\s]*(?:Rs\.?|₹)?\s*([\d,]+)/i,
+    /ULIP Premium[:\s]*(?:Rs\.?|₹)?\s*([\d,]+)/i,
+  ]);
+  setField('f_ulip', ulip);
+}
+
+function setField(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== '' && val !== null && val !== undefined) el.value = val;
+}
+
+// ---- Illustration table parser ----
+// Stores raw parsed table from PDF: { headers: string[], rows: string[][] }
+let rawIllustrationTable = null;
+
+// Try to automatically map header columns to charge fields
+function tryAutoMap(headers, rows) {
+  const map = {};
+  const rolePatterns = {
+    year:      /^(year|yr|policy\s*year|policyyr|no\.|s\.no)$/i,
+    pac:       /PAC|premium\s*alloc/i,
+    mortality: /mortality|mort\.|life cover charge|lcc/i,
+    admin:     /admin|policy\s*admin/i,
+    fmc:       /FMC|fund\s*mgmt|fund\s*management/i,
+    other:     /other|misc|switching|rider|add/i,
+    total:     /total\s*charge|total\s*deduct|total$/i,
+  };
+
+  headers.forEach((h, idx) => {
+    const ht = (h || '').trim();
+    for (const [role, pat] of Object.entries(rolePatterns)) {
+      if (pat.test(ht) && map[role] === undefined) {
+        map[role] = idx;
+        break;
+      }
+    }
+  });
+
+  // Must have at least one charge-related column keyword
+  if (map.pac === undefined && map.mortality === undefined && map.fmc === undefined && map.admin === undefined && map.total === undefined) return null;
+
+  // If year not found, assume col 0 if col 0 values are sequential integers 1,2,3...
+  if (map.year === undefined) {
+    const firstVals = rows.slice(0, 5).map(r => parseFloat(((r[0] || '')).replace(/,/g, '')));
+    if (firstVals[0] === 1 && firstVals[1] === 2) map.year = 0;
+    else return null;
+  }
+
+  const result = rows.map(r => {
+    const yr = parseInt((r[map.year] || '').replace(/,/g, '')) || 0;
+    const g = (idx) => (idx !== undefined && r[idx] != null) ? parseFloat((r[idx] + '').replace(/,/g, '')) || 0 : 0;
+    const pac       = g(map.pac);
+    const mortality = g(map.mortality);
+    const admin     = g(map.admin);
+    const fmc       = g(map.fmc);
+    let   other     = g(map.other);
+    if (map.total !== undefined) {
+      const tot = g(map.total);
+      const sumKnown = pac + mortality + admin + fmc;
+      if (tot > sumKnown + 1) other = Math.max(other, tot - sumKnown);
+    }
+    return { year: yr, pac, mortality, admin, fmc, other, total: pac + mortality + admin + fmc + other };
+  }).filter(r => r.year >= 1 && r.year <= 50);
+
+  return result.length >= 1 ? result : null;
+}
+
+// ── Show the interactive column mapper ──
+function showIllustrationMapper(headers, rows) {
+  document.getElementById('illustrationMapper').classList.remove('hidden');
+  document.getElementById('chargesTableWrap').classList.add('hidden');
+  document.getElementById('chargesBadge').textContent = 'Manual Mapping Required';
+
+  const roleOptions = [
+    { value: '',          label: '— Ignore —' },
+    { value: 'year',      label: '📅 Year' },
+    { value: 'pac',       label: 'PAC' },
+    { value: 'mortality', label: 'Mortality' },
+    { value: 'admin',     label: 'Admin' },
+    { value: 'fmc',       label: 'FMC' },
+    { value: 'other',     label: 'Other Charges' },
+    { value: 'total',     label: 'Total Charges' },
+  ];
+
+  // Build header row with dropdowns
+  const headerRow = document.getElementById('rawHeaderRow');
+  headerRow.innerHTML = '';
+  headers.forEach((h, idx) => {
+    // Pre-guess role
+    let guessed = '';
+    const hp = { year: /year|yr/i, pac: /PAC|alloc/i, mortality: /mort/i, admin: /admin/i, fmc: /FMC|fund/i, other: /other|misc/i, total: /total/i };
+    for (const [role, pat] of Object.entries(hp)) { if (pat.test(h)) { guessed = role; break; } }
+
+    const th = document.createElement('th');
+    th.id = `rawCol_${idx}`;
+    if (guessed === 'year') th.classList.add('col-year');
+    else if (guessed) th.classList.add('col-selected');
+
+    const opts = roleOptions.map(o => `<option value="${o.value}" ${o.value === guessed ? 'selected' : ''}>${o.label}</option>`).join('');
+    th.innerHTML = `<div class="col-header-inner"><span class="col-name">${h}</span><select class="col-role" onchange="onColRoleChange(${idx},this)">${opts}</select></div>`;
+    headerRow.appendChild(th);
+  });
+
+  // Build data rows (show max 20 for preview)
+  const tbody = document.getElementById('rawIllustrationBody');
+  tbody.innerHTML = '';
+  rows.slice(0, 20).forEach(row => {
+    const tr = document.createElement('tr');
+    headers.forEach((_, idx) => {
+      const td = document.createElement('td');
+      td.textContent = row[idx] || '';
+      td.id = `rawCell_r${rows.indexOf(row)}_c${idx}`;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  // Apply initial highlights
+  headers.forEach((_, idx) => highlightColumn(idx));
+}
+
+function onColRoleChange(colIdx, selectEl) {
+  const th = document.getElementById(`rawCol_${colIdx}`);
+  th.classList.remove('col-selected', 'col-year');
+  if (selectEl.value === 'year') th.classList.add('col-year');
+  else if (selectEl.value) th.classList.add('col-selected');
+  highlightColumn(colIdx);
+}
+
+function highlightColumn(colIdx) {
+  const selectEl = document.querySelector(`#rawCol_${colIdx} select.col-role`);
+  const role = selectEl ? selectEl.value : '';
+  const cells = document.querySelectorAll(`#rawIllustrationBody tr td:nth-child(${colIdx + 1})`);
+  cells.forEach(td => {
+    td.classList.remove('col-highlighted', 'col-year-highlighted');
+    if (role === 'year') td.classList.add('col-year-highlighted');
+    else if (role) td.classList.add('col-highlighted');
+  });
+}
+
+function applyColumnMapping() {
+  if (!rawIllustrationTable) return;
+  const { headers, rows } = rawIllustrationTable;
+
+  // Collect ALL column indices per role (multiple cols can map to same role → they get summed)
+  const colMap = {}; // role → [idx, idx, ...]
+  headers.forEach((_, idx) => {
+    const sel = document.querySelector(`#rawCol_${idx} select.col-role`);
+    if (sel && sel.value) {
+      if (!colMap[sel.value]) colMap[sel.value] = [];
+      colMap[sel.value].push(idx);
+    }
+  });
+
+  if (!colMap.year) {
+    const firstVals = rows.slice(0, 3).map(r => parseFloat((r[0] || '').replace(/,/g, '')));
+    if (firstVals[0] === 1 || firstVals[0] <= 5) colMap.year = [0];
+    else { showStatus('Please mark at least one column as "Year" before applying.', true); return; }
+  }
+
+  // Sum all columns mapped to a role
+  const gSum = (row, role) => {
+    const idxs = colMap[role];
+    if (!idxs) return 0;
+    return idxs.reduce((sum, idx) => {
+      const v = parseFloat((row[idx] || '').replace(/,/g, '')) || 0;
+      return sum + v;
+    }, 0);
+  };
+
+  const getYear = (row) => {
+    const idx = colMap.year[0];
+    return parseInt((row[idx] || '').replace(/,/g, '')) || 0;
+  };
+
+  chargesData = rows.map(row => {
+    const yr      = getYear(row);
+    const pac       = gSum(row, 'pac');
+    const mortality = gSum(row, 'mortality');
+    const admin     = gSum(row, 'admin');
+    const fmc       = gSum(row, 'fmc');
+    let   other     = gSum(row, 'other');
+    // If a 'total' column is mapped, use it to absorb any unmapped charges into 'other'
+    if (colMap.total) {
+      const tot = gSum(row, 'total');
+      const known = pac + mortality + admin + fmc + other;
+      if (tot > known + 1) other += tot - known;
+    }
+    const total = pac + mortality + admin + fmc + other;
+    return { year: yr, pac, mortality, admin, fmc, other, total };
+  }).filter(r => r.year >= 1 && r.year <= 50);
+
+  if (chargesData.length === 0) {
+    showStatus('No valid rows found with the selected mapping. Please check your column assignments.', true);
+    return;
+  }
+
+  document.getElementById('illustrationMapper').classList.add('hidden');
+  document.getElementById('chargesTableWrap').classList.remove('hidden');
+  document.getElementById('chargesBadge').textContent = 'Mapped ✓';
+  renderChargesTable();
+  showStatus(`Charges mapped successfully — ${chargesData.length} year(s) loaded. Edit any cell to correct values.`);
+}
+
+function skipMapping() {
+  document.getElementById('illustrationMapper').classList.add('hidden');
+  document.getElementById('chargesTableWrap').classList.remove('hidden');
+  document.getElementById('chargesBadge').textContent = 'Manual Entry';
+  chargesData = [];
+  renderChargesTable();
+  showStatus('Enter charges manually by clicking the cells in the table below.', false);
+}
+
+function renderChargesTable() {
+  const pt = parseInt(document.getElementById('f_pt').value) || 20;
+  const tbody = document.getElementById('chargesTbody');
+  document.getElementById('chargesTableWrap').classList.remove('hidden');
+
+  if (chargesData.length === 0) {
+    for (let y = 1; y <= Math.min(pt, 40); y++) {
+      chargesData.push({ year: y, pac: 0, mortality: 0, admin: 0, fmc: 0, other: 0, total: 0 });
+    }
+  }
+
+  tbody.innerHTML = '';
+  chargesData.forEach(row => {
+    row.total = row.pac + row.mortality + row.admin + row.fmc + row.other;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.year}</td>
+      <td contenteditable="true" oninput="updateCharge(${row.year},'pac',this.textContent)">${fmt(row.pac)}</td>
+      <td contenteditable="true" oninput="updateCharge(${row.year},'mortality',this.textContent)">${fmt(row.mortality)}</td>
+      <td contenteditable="true" oninput="updateCharge(${row.year},'admin',this.textContent)">${fmt(row.admin)}</td>
+      <td contenteditable="true" oninput="updateCharge(${row.year},'fmc',this.textContent)">${fmt(row.fmc)}</td>
+      <td contenteditable="true" oninput="updateCharge(${row.year},'other',this.textContent)">${fmt(row.other)}</td>
+      <td class="td-total" id="total_${row.year}">${fmt(row.total)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateCharge(year, field, val) {
+  const row = chargesData.find(r => r.year === year);
+  if (row) {
+    row[field] = parseFloat(val.replace(/,/g,'')) || 0;
+    row.total = row.pac + row.mortality + row.admin + row.fmc + row.other;
+    const totalEl = document.getElementById(`total_${year}`);
+    if (totalEl) totalEl.textContent = fmt(row.total);
+  }
+}
+
+function getChargeForYear(year) {
+  const row = chargesData.find(r => r.year === year);
+  return row ? row.total : 0;
+}
+
+// ---- Tab switcher ----
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ---- Main Calculation ----
+function runCalculation() {
+  const pt = parseInt(document.getElementById('f_pt').value) || 0;
+  const ppt = parseInt(document.getElementById('f_ppt').value) || 0;
+  const ulipPremium = parseFloat(document.getElementById('f_ulip').value) || 0;
+  const termPremium = parseFloat(document.getElementById('f_termPremium').value) || 0;
+
+  let rorVal = document.querySelector('input[name="ror"]:checked')?.value;
+  let ror;
+  if (rorVal === 'custom') {
+    ror = parseFloat(document.getElementById('f_customRor').value) / 100 || 0.12;
+  } else {
+    ror = parseFloat(rorVal) / 100 || 0.12;
+  }
+
+  if (!pt || !ulipPremium) {
+    showStatus('Please fill in Policy Term and ULIP Premium fields before calculating.', true);
+    return;
+  }
+
+  // Ensure charges rows exist for all years
+  for (let y = 1; y <= pt; y++) {
+    if (!chargesData.find(r => r.year === y)) {
+      chargesData.push({ year: y, pac: 0, mortality: 0, admin: 0, fmc: 0, other: 0, total: 0 });
+    }
+  }
+
+  // ---- ULIP Calculation ----
+  const ulipRows = [];
+  let ulipBal = 0;
+  for (let y = 1; y <= pt; y++) {
+    const openBal = ulipBal;
+    const premium = (y <= ppt) ? ulipPremium : 0;
+    const charges = getChargeForYear(y);
+    const netDeposit = premium - charges;
+    const income = (openBal + netDeposit) * ror;
+    const closeBal = openBal + netDeposit + income;
+    ulipBal = closeBal;
+    ulipRows.push({ year: y, openBal, premium, charges, netDeposit, income, closeBal });
+  }
+
+  // ---- BTRI Calculation ----
+  const btriRows = [];
+  let btriBal = 0;
+  for (let y = 1; y <= pt; y++) {
+    const openBal = btriBal;
+    const premium = (y <= ppt) ? ulipPremium : 0;
+    const tp = termPremium; // payable every year for full Policy Term
+    const netDeposit = premium - tp;
+    const income = (openBal + netDeposit) * ror;
+    const closeBal = openBal + netDeposit + income;
+    btriBal = closeBal;
+    btriRows.push({ year: y, openBal, premium, tp, netDeposit, income, closeBal });
+  }
+
+  // ---- Render ULIP ----
+  const ulipTbody = document.getElementById('ulipTbody');
+  ulipTbody.innerHTML = '';
+  ulipRows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${fmt(r.openBal)}</td>
+      <td>${fmt(r.premium)}</td>
+      <td>${fmt(r.charges)}</td>
+      <td>${fmt(r.netDeposit)}</td>
+      <td>${fmt(r.income)}</td>
+      <td>${fmt(r.closeBal)}</td>
+    `;
+    ulipTbody.appendChild(tr);
+  });
+
+  // ---- Render BTRI ----
+  const btriTbody = document.getElementById('btriTbody');
+  btriTbody.innerHTML = '';
+  btriRows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${fmt(r.openBal)}</td>
+      <td>${fmt(r.premium)}</td>
+      <td>${fmt(r.tp)}</td>
+      <td>${fmt(r.netDeposit)}</td>
+      <td>${fmt(r.income)}</td>
+      <td>${fmt(r.closeBal)}</td>
+    `;
+    btriTbody.appendChild(tr);
+  });
+
+  // ---- Render Comparison ----
+  const compareTbody = document.getElementById('compareTbody');
+  compareTbody.innerHTML = '';
+  ulipRows.forEach((ur, i) => {
+    const br = btriRows[i];
+    const diff = br.closeBal - ur.closeBal;
+    const winner = diff > 0 ? '<span class="winner-btri">BTRI ✓</span>' : diff < 0 ? '<span class="winner-ulip">ULIP ✓</span>' : '<span style="color:var(--slate)">Tie</span>';
+    const diffClass = diff > 0 ? 'diff-positive' : diff < 0 ? 'diff-negative' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${ur.year}</td>
+      <td>${fmt(ur.closeBal)}</td>
+      <td>${fmt(br.closeBal)}</td>
+      <td class="${diffClass}">${fmt(Math.abs(diff))}</td>
+      <td>${winner}</td>
+    `;
+    compareTbody.appendChild(tr);
+  });
+
+  // ---- Summary ----
+  const finalULIP = ulipRows[ulipRows.length - 1]?.closeBal || 0;
+  const finalBTRI = btriRows[btriRows.length - 1]?.closeBal || 0;
+  const gap = finalBTRI - finalULIP;
+
+  document.getElementById('sum_ulip').textContent = '₹' + fmt(finalULIP);
+  document.getElementById('sum_btri').textContent = '₹' + fmt(finalBTRI);
+  const gapEl = document.getElementById('sum_gap');
+  gapEl.textContent = (gap >= 0 ? '+' : '-') + '₹' + fmt(Math.abs(gap));
+  gapEl.className = 'summary-value ' + (gap > 0 ? 'positive' : gap < 0 ? 'negative' : 'neutral');
+
+  document.getElementById('results').classList.remove('hidden');
+  showStatus(`Calculation complete at ${(ror*100).toFixed(1)}% RoR. BTRI ${gap >= 0 ? 'outperforms' : 'underperforms'} ULIP by ₹${fmt(Math.abs(gap))}.`);
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ---- Consultant / Logo ----
+let logoDataUrl = null;
+
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    logoDataUrl = ev.target.result;
+    document.getElementById('logoPreview').src = logoDataUrl;
+    document.getElementById('logoPreview').style.display = 'block';
+    document.getElementById('logoPlaceholder').style.display = 'none';
+    document.getElementById('removeLogoBtn').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo(e) {
+  e.stopPropagation();
+  logoDataUrl = null;
+  document.getElementById('logoPreview').style.display = 'none';
+  document.getElementById('logoPlaceholder').style.display = 'block';
+  document.getElementById('removeLogoBtn').style.display = 'none';
+  document.getElementById('logoInput').value = '';
+}
+
+function getConsultant() {
+  return {
+    name:        document.getElementById('c_name').value.trim(),
+    designation: document.getElementById('c_designation').value.trim(),
+    company:     document.getElementById('c_company').value.trim(),
+    irdano:      document.getElementById('c_irdano').value.trim(),
+    phone:       document.getElementById('c_phone').value.trim(),
+    email:       document.getElementById('c_email').value.trim(),
+  };
+}
+
+function getPolicy() {
+  return {
+    name:      document.getElementById('f_name').value,
+    age:       document.getElementById('f_age').value,
+    company:   document.getElementById('f_company').value,
+    plan:      document.getElementById('f_plan').value,
+    issuedate: document.getElementById('f_issuedate').value,
+    sa:        document.getElementById('f_sa').value,
+    pt:        document.getElementById('f_pt').value,
+    ppt:       document.getElementById('f_ppt').value,
+    ulip:      document.getElementById('f_ulip').value,
+    termPrem:  document.getElementById('f_termPremium').value,
+  };
+}
+
+// Helper: read numeric table body rows → array of arrays
+function tableBodyToArrays(tbodyId, numCols) {
+  const rows = [];
+  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
+    const cells = [...tr.querySelectorAll('td')];
+    rows.push(cells.map(td => {
+      const raw = td.textContent.replace(/[₹,]/g, '').replace(/[✓]/g, '').trim();
+      const n = parseFloat(raw);
+      return isNaN(n) ? td.textContent.trim() : n;
+    }));
+  });
+  return rows;
+}
+
+// ============================================================
+// EXCEL EXPORT
+// ============================================================
+function exportExcel() {
+  if (!window.XLSX) { showStatus('SheetJS not loaded yet. Try again.', true); return; }
+
+  const wb = XLSX.utils.book_new();
+  const pol = getPolicy();
+  const con = getConsultant();
+
+  // ---- Helper to create a styled sheet from header array + data rows ----
+  const makeSheet = (headers, rows) => {
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    // Column widths
+    ws['!cols'] = headers.map(() => ({ wch: 18 }));
+    return ws;
+  };
+
+  // ---- Sheet 1: Basic Details ----
+  const detailRows = [
+    ['POLICY DETAILS', ''],
+    ['Policyholder Name', pol.name],
+    ['Age', pol.age],
+    ['Insurance Company', pol.company],
+    ['Plan Name', pol.plan],
+    ['Policy Issue Date', pol.issuedate],
+    ['Sum Assured (₹)', pol.sa],
+    ['Policy Term (Years)', pol.pt],
+    ['Premium Paying Term (Years)', pol.ppt],
+    ['ULIP Annual Premium (₹)', pol.ulip],
+    ['Term Plan Premium (₹)', pol.termPrem],
+    ['', ''],
+    ['CONSULTANT DETAILS', ''],
+    ['Consultant Name', con.name],
+    ['Designation', con.designation],
+    ['Company / Firm', con.company],
+    ['IRDA / ARN No.', con.irdano],
+    ['Phone', con.phone],
+    ['Email', con.email],
+  ];
+  const wsDetails = XLSX.utils.aoa_to_sheet(detailRows);
+  wsDetails['!cols'] = [{ wch: 28 }, { wch: 36 }];
+  XLSX.utils.book_append_sheet(wb, wsDetails, 'Policy Details');
+
+  // ---- Sheet 2: Charges ----
+  const chargeHeaders = ['Year', 'PAC (₹)', 'Mortality (₹)', 'Admin (₹)', 'FMC (₹)', 'Other (₹)', 'Total Charges (₹)'];
+  const chargeRows = chargesData.map(r => [r.year, r.pac, r.mortality, r.admin, r.fmc, r.other, r.total]);
+  XLSX.utils.book_append_sheet(wb, makeSheet(chargeHeaders, chargeRows), 'Charges');
+
+  // ---- Sheet 3: ULIP Performance ----
+  const ulipHeaders = ['S.No', 'Opening Balance (₹)', 'ULIP Premium (₹)', 'Total Charges (₹)', 'Net Deposit (₹)', 'Income (₹)', 'Closing Balance (₹)'];
+  const ulipRows = tableBodyToArrays('ulipTbody', 7);
+  XLSX.utils.book_append_sheet(wb, makeSheet(ulipHeaders, ulipRows), 'ULIP Performance');
+
+  // ---- Sheet 4: BTRI Performance ----
+  const btriHeaders = ['S.No', 'Opening Balance (₹)', 'ULIP Premium (₹)', 'Term Premium (₹)', 'Net Deposit (₹)', 'Income (₹)', 'Closing Balance (₹)'];
+  const btriRows = tableBodyToArrays('btriTbody', 7);
+  XLSX.utils.book_append_sheet(wb, makeSheet(btriHeaders, btriRows), 'BTRI Performance');
+
+  // ---- Sheet 5: Comparison ----
+  const cmpHeaders = ['S.No', 'Year', 'ULIP Fund Value (₹)', 'BTRI Fund Value (₹)', 'Difference (₹)', 'Winner'];
+  const cmpRows = tableBodyToArrays('compareTbody', 6);
+  XLSX.utils.book_append_sheet(wb, makeSheet(cmpHeaders, cmpRows), 'Comparison');
+
+  // ---- Sheet 6: Summary ----
+  const finalULIP = parseFloat(document.getElementById('sum_ulip').textContent.replace(/[₹,+\- ]/g,'')) || 0;
+  const finalBTRI = parseFloat(document.getElementById('sum_btri').textContent.replace(/[₹,+\- ]/g,'')) || 0;
+  const gap = finalBTRI - finalULIP;
+  const summaryRows = [
+    ['STRATEGY SUMMARY', ''],
+    ['ULIP Final Value (₹)', finalULIP],
+    ['BTRI Final Value (₹)', finalBTRI],
+    ['Wealth Gap (₹)', gap],
+    ['Better Strategy', gap >= 0 ? 'BTRI (Buy Term & Invest Rest)' : 'ULIP'],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+  wsSummary['!cols'] = [{ wch: 32 }, { wch: 24 }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  const filename = `Policy_Audit_${(pol.name || 'Report').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showStatus(`Excel report downloaded: ${filename}`);
+}
+
+// ============================================================
+// PDF EXPORT
+// ============================================================
+async function exportPDF() {
+  if (!window.jspdf) { showStatus('jsPDF not loaded yet. Try again.', true); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pol = getPolicy();
+  const con = getConsultant();
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  // ---- Colors ----
+  const C_DARK   = [10, 15, 30];
+  const C_HEADER = [16, 56, 70];
+  const C_EMRLD  = [16, 185, 129];
+  const C_AMBER  = [245, 158, 11];
+  const C_SLATE  = [148, 163, 184];
+  const C_WHITE  = [248, 250, 252];
+  const C_SURFACE= [26, 34, 53];
+
+  // ---- Background ----
+  const drawBackground = () => {
+    doc.setFillColor(...C_DARK);
+    doc.rect(0, 0, pageW, pageH, 'F');
+  };
+
+  // ---- Header band with logo + consultant ----
+  const drawPageHeader = (title, pageNum) => {
+    drawBackground();
+    // Top band
+    doc.setFillColor(...C_HEADER);
+    doc.rect(0, 0, pageW, 22, 'F');
+
+    // Logo
+    let logoX = 6;
+    if (logoDataUrl) {
+      try {
+        const ext = logoDataUrl.split(';')[0].split('/')[1].toUpperCase();
+        doc.addImage(logoDataUrl, ext, 4, 2, 18, 18);
+        logoX = 26;
+      } catch(e) { logoX = 6; }
+    }
+
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...C_EMRLD);
+    doc.text('Policy Strategy Auditor', logoX, 9);
+    doc.setFontSize(9);
+    doc.setTextColor(...C_SLATE);
+    doc.text(title, logoX, 15);
+
+    // Consultant info top-right
+    if (con.name || con.company) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...C_WHITE);
+      const lines = [
+        con.name ? `${con.name}${con.designation ? ' · ' + con.designation : ''}` : '',
+        con.company || '',
+        [con.irdano, con.phone].filter(Boolean).join('  |  '),
+        con.email || '',
+      ].filter(Boolean);
+      lines.forEach((l, i) => doc.text(l, pageW - 6, 6 + i * 4.2, { align: 'right' }));
+    }
+
+    // Page number
+    doc.setFontSize(7);
+    doc.setTextColor(...C_SLATE);
+    doc.text(`Page ${pageNum}`, pageW - 6, pageH - 4, { align: 'right' });
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 6, pageH - 4);
+  };
+
+  // ---- Reusable autoTable style ----
+  const tableStyle = {
+    headStyles: {
+      fillColor: C_EMRLD,
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 7,
+      halign: 'right',
+    },
+    bodyStyles: {
+      fillColor: C_SURFACE,
+      textColor: C_WHITE,
+      fontSize: 6.5,
+      halign: 'right',
+    },
+    alternateRowStyles: { fillColor: [20, 28, 44] },
+    columnStyles: { 0: { halign: 'center' } },
+    margin: { top: 28, left: 6, right: 6 },
+    tableLineColor: [42, 58, 82],
+    tableLineWidth: 0.1,
+  };
+
+  const fmtN = n => typeof n === 'number' ? new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) : (n || '—');
+
+  let pageNum = 1;
+
+  // ===== PAGE 1: Policy Details + Consultant =====
+  drawPageHeader('Policy & Consultant Details', pageNum++);
+
+  // Two-column layout for policy + consultant
+  const col1X = 6, col2X = pageW / 2 + 4, colW = pageW / 2 - 10;
+  let y = 28;
+
+  const drawSection = (title, pairs, startX, startY, width) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...C_EMRLD);
+    doc.text(title, startX, startY);
+    let cy = startY + 5;
+    pairs.forEach(([label, val]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(...C_SLATE);
+      doc.text(label, startX, cy);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...C_WHITE);
+      doc.text(String(val || '—'), startX + width * 0.48, cy);
+      cy += 5.5;
+    });
+    return cy;
+  };
+
+  drawSection('POLICY DETAILS', [
+    ['Policyholder', pol.name],
+    ['Age', pol.age + ' years'],
+    ['Insurance Company', pol.company],
+    ['Plan Name', pol.plan],
+    ['Issue Date', pol.issuedate],
+    ['Sum Assured', '₹' + fmtN(parseFloat(pol.sa))],
+    ['Policy Term', pol.pt + ' years'],
+    ['Premium Paying Term', pol.ppt + ' years'],
+    ['ULIP Annual Premium', '₹' + fmtN(parseFloat(pol.ulip))],
+    ['Term Plan Premium', '₹' + fmtN(parseFloat(pol.termPrem))],
+  ], col1X, y, colW);
+
+  drawSection('CONSULTANT DETAILS', [
+    ['Name', con.name],
+    ['Designation', con.designation],
+    ['Company / Firm', con.company],
+    ['IRDA / ARN No.', con.irdano],
+    ['Phone', con.phone],
+    ['Email', con.email],
+  ], col2X, y, colW);
+
+  // Summary box
+  const finalULIP = parseFloat(document.getElementById('sum_ulip').textContent.replace(/[₹,+\- ]/g,'')) || 0;
+  const finalBTRI = parseFloat(document.getElementById('sum_btri').textContent.replace(/[₹,+\- ]/g,'')) || 0;
+  const gap = finalBTRI - finalULIP;
+  const summaryY = 100;
+  doc.setFillColor(...C_SURFACE);
+  doc.roundedRect(6, summaryY, pageW - 12, 28, 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...C_EMRLD);
+  doc.text('STRATEGY SUMMARY', 12, summaryY + 7);
+  const cols3 = pageW / 3;
+  [
+    ['ULIP Final Value', '₹' + fmtN(finalULIP), C_AMBER],
+    ['BTRI Final Value', '₹' + fmtN(finalBTRI), C_EMRLD],
+    ['Wealth Gap', (gap >= 0 ? '+' : '-') + '₹' + fmtN(Math.abs(gap)), gap >= 0 ? C_EMRLD : [244, 63, 94]],
+  ].forEach(([label, val, color], i) => {
+    const sx = 12 + i * cols3;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...C_SLATE);
+    doc.text(label, sx, summaryY + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...color);
+    doc.text(val, sx, summaryY + 24);
+  });
+
+  // ===== PAGE 2: Charges =====
+  doc.addPage();
+  drawPageHeader('Year-wise Charges', pageNum++);
+  doc.autoTable({
+    head: [['Year', 'PAC (₹)', 'Mortality (₹)', 'Admin (₹)', 'FMC (₹)', 'Other (₹)', 'Total Charges (₹)']],
+    body: chargesData.map(r => [r.year, fmtN(r.pac), fmtN(r.mortality), fmtN(r.admin), fmtN(r.fmc), fmtN(r.other), fmtN(r.total)]),
+    ...tableStyle,
+    columnStyles: {
+      0: { halign: 'center' },
+      6: { textColor: C_AMBER, fontStyle: 'bold' },
+    },
+  });
+
+  // ===== PAGE 3: ULIP Performance =====
+  doc.addPage();
+  drawPageHeader('ULIP Performance', pageNum++);
+  const ulipRows2 = tableBodyToArrays('ulipTbody', 7);
+  doc.autoTable({
+    head: [['S.No', 'Opening Bal (₹)', 'ULIP Premium (₹)', 'Total Charges (₹)', 'Net Deposit (₹)', 'Income (₹)', 'Closing Balance (₹)']],
+    body: ulipRows2.map(r => r.map((v,i) => i === 0 ? v : fmtN(v))),
+    ...tableStyle,
+  });
+
+  // ===== PAGE 4: BTRI Performance =====
+  doc.addPage();
+  drawPageHeader('BTRI Performance', pageNum++);
+  const btriRows2 = tableBodyToArrays('btriTbody', 7);
+  doc.autoTable({
+    head: [['S.No', 'Opening Bal (₹)', 'ULIP Premium (₹)', 'Term Premium (₹)', 'Net Deposit (₹)', 'Income (₹)', 'Closing Balance (₹)']],
+    body: btriRows2.map(r => r.map((v,i) => i === 0 ? v : fmtN(v))),
+    ...tableStyle,
+  });
+
+  // ===== PAGE 5: Comparison =====
+  doc.addPage();
+  drawPageHeader('ULIP vs BTRI Comparison', pageNum++);
+  const cmpRows2 = tableBodyToArrays('compareTbody', 6);
+  doc.autoTable({
+    head: [['S.No', 'Year', 'ULIP Fund Value (₹)', 'BTRI Fund Value (₹)', 'Difference (₹)', 'Winner']],
+    body: cmpRows2.map(r => {
+      const winner = r[5] || '';
+      const diff = typeof r[4] === 'number' ? fmtN(r[4]) : r[4];
+      const ulipVal = typeof r[2] === 'number' ? fmtN(r[2]) : r[2];
+      const btriVal = typeof r[3] === 'number' ? fmtN(r[3]) : r[3];
+      return [r[0], r[1], ulipVal, btriVal, diff, winner.replace(/[✓]/g,'✓')];
+    }),
+    ...tableStyle,
+    columnStyles: {
+      0: { halign: 'center' },
+      5: { halign: 'center', fontStyle: 'bold' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 5) {
+        const v = String(data.cell.raw || '');
+        if (v.includes('BTRI')) data.cell.styles.textColor = C_EMRLD;
+        else if (v.includes('ULIP')) data.cell.styles.textColor = C_AMBER;
+      }
+      if (data.section === 'body' && data.column.index === 4) {
+        // colour difference based on winner
+        const winner = String(data.row.cells[5]?.raw || '');
+        if (winner.includes('BTRI')) data.cell.styles.textColor = C_EMRLD;
+        else if (winner.includes('ULIP')) data.cell.styles.textColor = C_AMBER;
+      }
+    },
+  });
+
+  const filename = `Policy_Audit_${(pol.name || 'Report').replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+  doc.save(filename);
+  showStatus(`PDF report downloaded: ${filename}`);
+}
+</script>
+</body>
+</html>
